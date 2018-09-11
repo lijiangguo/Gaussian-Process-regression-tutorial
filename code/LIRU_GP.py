@@ -14,18 +14,22 @@ def Kernel(squared_distance,L):
     return np.exp(-1/(2*L**2)*squared_distance)
 
 # Function that creates and inverts gram matrix for a squared exponential kernel with length-scale L.
-# (Probably needs tidying up at some point.)
 def FindGramMatrix(X,L,Sigma,N):    
+    squared_distances = FindSquaredDistances(X)
+    K = Kernel(squared_distances,L)
+    C = K + Sigma**2*np.identity(N)                   
+    InvC = np.linalg.inv(C)
+    return K,C,InvC
+
+# Function that finds the squared distances between inputs points (efficiently). 
+def FindSquaredDistances(X):
     if np.size(X[0]) == 1:
         Xsq = X**2
         squared_distances = -2*np.outer(X,X) + (Xsq[:,None] + Xsq[None,:])
     else:
         Xsq = np.sum(X**2,1)
         squared_distances = -2.*np.dot(X,X.T) + (Xsq[:,None] + Xsq[None,:])
-    K = Kernel(squared_distances,L)
-    C = K + Sigma**2*np.identity(N)                   
-    InvC = np.linalg.inv(C)
-    return K,C,InvC
+    return squared_distances
 
 # Returns negative log-likelihood function in a form suitable for scipy.optimize.fmin_bfgs.
 def NegLogLikelihoodFun(Theta,a):
@@ -39,13 +43,10 @@ def NegLogLikelihoodFun(Theta,a):
     LogDetC = Sign*LogDetC
     return 0.5*LogDetC + 0.5*np.dot(Y,np.dot(InvC,Y))
 
-# Derivative of matrix C w.r.t L (length scale)
+# Derivative of matrix C w.r.t L (length scale).
 def dC_dL_Fun(X,L,K,N):
-    dC_dL = np.zeros([N,N])
-    for i in range(0,N):
-        for j in range(0,N):
-            dC_dL[i,j] = np.power(L,-3) * np.dot(X[i]-X[j],X[i]-X[j]) * K[i,j]
-    return dC_dL
+    squared_distances = FindSquaredDistances(X)
+    return np.power(L,-3) * np.multiply(squared_distances,K)
 
 # Derivative of matrix C w.r.t sigma (noise std)
 def dC_dSigma_Fun(Sigma, K, N):
